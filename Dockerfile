@@ -12,13 +12,17 @@ RUN npm run build
 FROM php:8.3-cli-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        git unzip libpq-dev libzip-dev \
-    && docker-php-ext-install pdo_pgsql pgsql zip \
+        git unzip libpq-dev libzip-dev libsqlite3-dev \
+    && docker-php-ext-install pdo_pgsql pgsql pdo_sqlite zip \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
+
+# Dummy key so artisan can run during image build
+ENV APP_KEY=base64:rZWM2jlnL9P2jky+g1wHbPygurTzWwHVwVmejHjjK8M=
+ENV APP_ENV=production
 
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction
@@ -29,11 +33,11 @@ COPY --from=frontend /app/public/build ./public/build
 RUN composer dump-autoload --optimize --no-dev \
     && php artisan package:discover --ansi \
     && php artisan config:clear \
-    && mkdir -p storage/framework/{cache,sessions,views} storage/logs bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache
+    && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache database \
+    && chmod -R 775 storage bootstrap/cache database
 
 COPY docker/start.sh /usr/local/bin/start.sh
-RUN chmod +x /usr/local/bin/start.sh
+RUN sed -i 's/\r$//' /usr/local/bin/start.sh && chmod +x /usr/local/bin/start.sh
 
 EXPOSE 8000
 CMD ["start.sh"]
