@@ -24,6 +24,8 @@ services:
         value: info
       - key: DB_CONNECTION
         value: sqlite
+      - key: DB_DATABASE
+        value: /var/www/html/database/database.sqlite
       - key: SESSION_DRIVER
         value: file
       - key: CACHE_STORE
@@ -32,3 +34,9 @@ services:
         value: sync
       - key: FILESYSTEM_DISK
         value: local
+      - key: WEBROOT
+        value: /var/www/html/public
+      - key: RUN_SCRIPTS
+        value: "1"
+      - key: SKIP_COMPOSER
+        value: "1"

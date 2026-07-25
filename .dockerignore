@@ -14,8 +14,8 @@ storage/framework/views/*
 bootstrap/cache/*.php
 tests
 phpunit.xml
-README.md
 .cursor
-agent-transcripts
+agent-tools
+database/*.sqlite
 *.md
 !README.md

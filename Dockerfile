@@ -1,4 +1,4 @@
-# ---- Frontend build ----
+# ---- Frontend assets (Vite) ----
 FROM node:22-alpine AS frontend
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -8,36 +8,31 @@ COPY resources ./resources
 COPY public ./public
 RUN npm run build
 
-# ---- PHP app ----
-FROM php:8.3-cli-bookworm
+# ---- Laravel on Render (nginx + php-fpm) ----
+FROM richarvey/nginx-php-fpm:3.1.6
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        git unzip libpq-dev libzip-dev libsqlite3-dev \
-    && docker-php-ext-install pdo_pgsql pgsql pdo_sqlite zip \
-    && rm -rf /var/lib/apt/lists/*
+COPY . /var/www/html
+COPY --from=frontend /app/public/build /var/www/html/public/build
 
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+# Image / server config
+ENV SKIP_COMPOSER=1
+ENV WEBROOT=/var/www/html/public
+ENV PHP_ERRORS_STDERR=1
+ENV RUN_SCRIPTS=1
+ENV REAL_IP_HEADER=1
+ENV COMPOSER_ALLOW_SUPERUSER=1
 
-WORKDIR /app
-
-# Dummy key so artisan can run during image build
-ENV APP_KEY=base64:rZWM2jlnL9P2jky+g1wHbPygurTzWwHVwVmejHjjK8M=
+# Laravel defaults (overridden by Render env vars when set)
 ENV APP_ENV=production
+ENV APP_DEBUG=false
+ENV LOG_CHANNEL=stderr
 
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist --no-interaction
+WORKDIR /var/www/html
 
-COPY . .
-COPY --from=frontend /app/public/build ./public/build
-
-RUN composer dump-autoload --optimize --no-dev \
-    && php artisan package:discover --ansi \
-    && php artisan config:clear \
+RUN composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader \
     && mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache database \
-    && chmod -R 775 storage bootstrap/cache database
+    && chmod -R 775 storage bootstrap/cache database \
+    && chown -R nginx:nginx storage bootstrap/cache database \
+    && sed -i 's/\r$//' /var/www/html/scripts/*.sh || true
 
-COPY docker/start.sh /usr/local/bin/start.sh
-RUN sed -i 's/\r$//' /usr/local/bin/start.sh && chmod +x /usr/local/bin/start.sh
-
-EXPOSE 8000
-CMD ["start.sh"]
+CMD ["/start.sh"]
